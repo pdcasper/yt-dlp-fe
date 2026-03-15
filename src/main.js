@@ -4,6 +4,7 @@ const { open } = window.__TAURI__.dialog;
 
 const urlInput = document.querySelector("#url-input");
 const downloadBtn = document.querySelector("#download-btn");
+const cancelBtn = document.querySelector("#cancel-btn");
 const folderBtn = document.querySelector("#folder-btn");
 const progressContainer = document.querySelector("#progress-container");
 const progressFill = document.querySelector("#progress-fill");
@@ -28,6 +29,8 @@ async function startDownload() {
 
   isDownloading = true;
   downloadBtn.disabled = true;
+  cancelBtn.disabled = false;
+  cancelBtn.classList.remove("hidden");
   urlInput.disabled = true;
   
   progressContainer.classList.remove("hidden");
@@ -43,11 +46,29 @@ async function startDownload() {
     statusText.textContent = "Complete!";
     showResult(response, "success");
   } catch (error) {
-    showResult(error, "error");
+    if (!error.includes("cancelled")) {
+      showResult(error, "error");
+    }
   } finally {
     isDownloading = false;
     downloadBtn.disabled = false;
+    cancelBtn.disabled = true;
+    cancelBtn.classList.add("hidden");
     urlInput.disabled = false;
+  }
+}
+
+async function cancelDownload() {
+  try {
+    await invoke("cancel_download");
+    statusText.textContent = "Cancelled";
+    isDownloading = false;
+    downloadBtn.disabled = false;
+    cancelBtn.disabled = true;
+    cancelBtn.classList.add("hidden");
+    urlInput.disabled = false;
+  } catch (error) {
+    console.error("Failed to cancel:", error);
   }
 }
 
@@ -104,8 +125,18 @@ listen("download-error", (event) => {
   showResult(event.payload, "error");
 });
 
+listen("download-cancelled", () => {
+  statusText.textContent = "Cancelled";
+  isDownloading = false;
+  downloadBtn.disabled = false;
+  cancelBtn.disabled = true;
+  cancelBtn.classList.add("hidden");
+  urlInput.disabled = false;
+});
+
 window.addEventListener("DOMContentLoaded", () => {
   downloadBtn.addEventListener("click", startDownload);
+  cancelBtn.addEventListener("click", cancelDownload);
   folderBtn.addEventListener("click", selectFolder);
   
   urlInput.addEventListener("keypress", (e) => {

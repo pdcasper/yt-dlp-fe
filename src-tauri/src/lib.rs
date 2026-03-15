@@ -2,12 +2,13 @@ use std::path::Path;
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, atomic::AtomicBool};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_shell::ShellExt;
 
 struct AppState {
     download_dir: Mutex<Option<PathBuf>>,
+    current_pid: Mutex<Option<u32>>,
+    cancel_flag: Arc<AtomicBool>,
 }
 
 fn get_config_path(app: &AppHandle) -> PathBuf {
@@ -81,20 +82,59 @@ async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
 
     let _ = app.emit("download-started", ());
 
-    let output = app
-        .shell()
-        .command("yt-dlp")
-        .args([
+    let cancel_flag = app.state::<AppState>().cancel_flag.clone();
+    cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+
+    #[cfg(unix)]
+    let child = {
+        use std::os::unix::process::CommandExt;
+        let mut cmd = std::process::Command::new("yt-dlp");
+        cmd.args([
             "-x",
             "--audio-format",
             "mp3",
             "--output",
             &output_template,
             &url,
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run yt-dlp: {}", e))?;
+        ]);
+        cmd.process_group(0);
+        cmd.spawn()
+            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?
+    };
+
+    #[cfg(not(unix))]
+    let child = {
+        std::process::Command::new("yt-dlp")
+            .args([
+                "-x",
+                "--audio-format",
+                "mp3",
+                "--output",
+                &output_template,
+                &url,
+            ])
+            .spawn()
+            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?
+    };
+
+    let pid = child.id();
+    {
+        let state = app.state::<AppState>();
+        *state.current_pid.lock().unwrap() = Some(pid);
+    }
+
+    let output = child.wait_with_output().map_err(|e| format!("Failed to wait: {}", e))?;
+
+    let was_cancelled = cancel_flag.load(std::sync::atomic::Ordering::SeqCst);
+
+    {
+        let state = app.state::<AppState>();
+        *state.current_pid.lock().unwrap() = None;
+    }
+
+    if was_cancelled {
+        return Err("Download cancelled".to_string());
+    }
 
     if output.status.success() {
         let _ = app.emit("download-complete", ());
@@ -109,6 +149,32 @@ async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
     }
 }
 
+#[tauri::command]
+async fn cancel_download(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let cancel_flag = state.cancel_flag.clone();
+    cancel_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    if let Some(pid) = *state.current_pid.lock().unwrap() {
+        #[cfg(unix)]
+        {
+            std::process::Command::new("kill")
+                .args(["-9", &format!("-{}", pid)])
+                .spawn()
+                .map_err(|e| format!("Failed to kill: {}", e))?;
+        }
+        #[cfg(not(unix))]
+        {
+            std::process::Command::new("taskkill")
+                .args(["/F", "/T", "/PID", &pid.to_string()])
+                .spawn()
+                .map_err(|e| format!("Failed to kill: {}", e))?;
+        }
+        let _ = app.emit("download-cancelled", ());
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -119,11 +185,36 @@ pub fn run() {
             let dir = load_download_dir(app.handle());
             app.manage(AppState {
                 download_dir: Mutex::new(dir),
+                current_pid: Mutex::new(None),
+                cancel_flag: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let app = window.app_handle();
+                let state = app.state::<AppState>();
+                state.cancel_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                let pid = *state.current_pid.lock().unwrap();
+                if let Some(pid) = pid {
+                    #[cfg(unix)]
+                    {
+                        let _ = std::process::Command::new("kill")
+                            .args(["-9", &format!("-{}", pid)])
+                            .spawn();
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        let _ = std::process::Command::new("taskkill")
+                            .args(["/F", "/T", "/PID", &pid.to_string()])
+                            .spawn();
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             download_mp3,
+            cancel_download,
             get_download_dir,
             set_download_dir
         ])
