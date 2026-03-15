@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-03-15
+
+### Added
+- Native folder picker button to select custom download directory
+- Download directory persists between sessions
+- Responsive UI that adapts to window size
+
+### Changed
+- Improved container layout with flexbox for better responsiveness
+
 ## [0.2.0] - 2026-03-15
 
 ### Changed

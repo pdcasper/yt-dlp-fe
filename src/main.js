@@ -1,8 +1,10 @@
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
+const { open } = window.__TAURI__.dialog;
 
 const urlInput = document.querySelector("#url-input");
 const downloadBtn = document.querySelector("#download-btn");
+const folderBtn = document.querySelector("#folder-btn");
 const progressContainer = document.querySelector("#progress-container");
 const progressFill = document.querySelector("#progress-fill");
 const statusText = document.querySelector("#status-text");
@@ -49,11 +51,37 @@ async function startDownload() {
   }
 }
 
+async function selectFolder() {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+  });
+
+  if (selected) {
+    try {
+      await invoke("set_download_dir", { path: selected });
+      folderBtn.title = selected;
+      showResult(`Download folder set to: ${selected}`, "success");
+    } catch (error) {
+      showResult(`Error: ${error}`, "error");
+    }
+  }
+}
+
 function showResult(message, type) {
   resultText.textContent = message;
   result.classList.remove("hidden", "success", "error");
   result.classList.add(type);
   progressContainer.classList.add("hidden");
+}
+
+async function initFolder() {
+  try {
+    const dir = await invoke("get_download_dir");
+    folderBtn.title = dir;
+  } catch (e) {
+    console.error("Failed to get download dir:", e);
+  }
 }
 
 listen("download-started", () => {
@@ -78,10 +106,13 @@ listen("download-error", (event) => {
 
 window.addEventListener("DOMContentLoaded", () => {
   downloadBtn.addEventListener("click", startDownload);
+  folderBtn.addEventListener("click", selectFolder);
   
   urlInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter" && !isDownloading) {
       startDownload();
     }
   });
+
+  initFolder();
 });
