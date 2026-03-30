@@ -74,7 +74,7 @@ The built application will be in:
 
 ## Usage
 
-1. Enter a YouTube URL in the input field
+1. Enter a YouTube URL in the input field.
 2. Click "Download" to convert to MP3
 3. The file will be saved to your Downloads folder
 
