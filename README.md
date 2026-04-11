@@ -1,36 +1,18 @@
 # yt-dlp-fe
 
-A simple cross-platform desktop app to download YouTube audio as MP3 using [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+A simple cross-platform desktop app to download YouTube audio using [rusty_ytdl](https://github.com/Mithronn/rusty-ytdl).
 
 ## Features
 
-- Download YouTube videos as MP3 audio
+- Download YouTube videos as audio (m4a format)
 - Simple minimalist UI
+- No external dependencies required
 - Cross-platform (Linux, macOS, Windows)
 
 ## Requirements
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed on your system
+- No external dependencies required!
 - For development: Node.js, Rust
-
-### Install yt-dlp
-
-**macOS:**
-```bash
-brew install yt-dlp
-```
-
-**Linux:**
-```bash
-pip install yt-dlp
-# or
-sudo dnf install yt-dlp
-```
-
-**Windows:**
-```powershell
-pip install yt-dlp
-```
 
 ## Development
 
@@ -95,44 +77,26 @@ Pre-built binaries are available on the [Releases](https://github.com/pdcasper/y
 ## Usage
 
 1. Enter a YouTube URL in the input field
-2. Click "Download" to convert to MP3
+2. Click "Download" to download the audio
 3. The file will be saved to your Downloads folder
 
 ---
 
 # yt-dlp-fe (Espanol)
 
-Una aplicacion de escritorio multiplataforma para descargar audio de YouTube como MP3 usando [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+Una aplicacion de escritorio multiplataforma para descargar audio de YouTube usando [rusty_ytdl](https://github.com/Mithronn/rusty-ytdl).
 
 ## Caracteristicas
 
-- Descargar videos de YouTube como audio MP3
+- Descargar videos de YouTube como audio (formato m4a)
 - Interfaz minimalista y sencilla
+- Sin dependencias externas
 - Multiplataforma (Linux, macOS, Windows)
 
 ## Requisitos
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) instalado en tu sistema
+- Sin dependencias externas!
 - Para desarrollo: Node.js, Rust
-
-### Instalar yt-dlp
-
-**macOS:**
-```bash
-brew install yt-dlp
-```
-
-**Linux:**
-```bash
-pip install yt-dlp
-# o
-sudo dnf install yt-dlp
-```
-
-**Windows:**
-```powershell
-pip install yt-dlp
-```
 
 ## Desarrollo
 
@@ -197,7 +161,7 @@ Los binarios pre-construidos estan disponibles en la pagina de [Lanzamientos](ht
 ## Uso
 
 1. Ingresa una URL de YouTube en el campo de texto
-2. Haz clic en "Descargar" para convertir a MP3
+2. Haz clic en "Descargar" para descargar el audio
 3. El archivo se guardara en tu carpeta de Descargas
 
 ## Licencia

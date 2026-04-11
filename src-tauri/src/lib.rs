@@ -2,13 +2,13 @@ use std::path::Path;
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, atomic::AtomicBool};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU64}};
 use tauri::{AppHandle, Emitter, Manager};
 
 struct AppState {
     download_dir: Mutex<Option<PathBuf>>,
-    current_pid: Mutex<Option<u32>>,
     cancel_flag: Arc<AtomicBool>,
+    progress: Arc<AtomicU64>,
 }
 
 fn get_config_path(app: &AppHandle) -> PathBuf {
@@ -73,131 +73,96 @@ fn set_download_dir(app: AppHandle, path: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
-    fn find_executable(name: &str) -> Option<std::process::Command> {
-        let search_paths = [
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-        ];
-
-        for base in &search_paths {
-            let path = std::path::Path::new(base).join(name);
-            if path.exists() {
-                return Some(std::process::Command::new(path.to_string_lossy().to_string()));
-            }
-        }
-
-        if std::process::Command::new(name).arg("--version").output().is_ok() {
-            return Some(std::process::Command::new(name));
-        }
-
-        None
-    }
-
-    fn get_yt_dlp_command() -> std::process::Command {
-        find_executable("yt-dlp").unwrap_or_else(|| std::process::Command::new("yt-dlp"))
-    }
-
     let output_dir = get_effective_download_dir(&app);
-
-    let output_template = output_dir
-        .join("%(title)s.%(ext)s")
-        .to_string_lossy()
-        .to_string();
 
     let _ = app.emit("download-started", ());
 
     let cancel_flag = app.state::<AppState>().cancel_flag.clone();
     cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
-    #[cfg(unix)]
-    let child = {
-        use std::os::unix::process::CommandExt;
-        let mut cmd = get_yt_dlp_command();
-        cmd.args([
-            "-x",
-            "--audio-format",
-            "mp3",
-            "--output",
-            &output_template,
-            &url,
-        ]);
-        cmd.process_group(0);
-        cmd.spawn()
-            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?
+    let progress = app.state::<AppState>().progress.clone();
+
+    let video_info = rusty_ytdl::Video::new(&url)
+        .map_err(|e| format!("Failed to create video: {}", e))?
+        .get_info()
+        .await
+        .map_err(|e| format!("Failed to get video info: {}", e))?;
+
+    let title = video_info
+        .video_details
+        .title;
+
+    let sanitized_title: String = title
+        .chars()
+        .filter(|c: &char| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_')
+        .collect::<String>()
+        .trim()
+        .to_string();
+
+    let output_path = output_dir.join(format!("{}.mp3", sanitized_title));
+
+    let video_options = rusty_ytdl::VideoOptions {
+        quality: rusty_ytdl::VideoQuality::Highest,
+        filter: rusty_ytdl::VideoSearchOptions::Audio,
+        ..Default::default()
     };
 
-    #[cfg(not(unix))]
-    let child = {
-        get_yt_dlp_command()
-            .args([
-                "-x",
-                "--audio-format",
-                "mp3",
-                "--output",
-                &output_template,
-                &url,
-            ])
-            .spawn()
-            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?
-    };
+    let video = rusty_ytdl::Video::new_with_options(&url, video_options)
+        .map_err(|e| format!("Failed to create video: {}", e))?;
 
-    let pid = child.id();
-    {
-        let state = app.state::<AppState>();
-        *state.current_pid.lock().unwrap() = Some(pid);
+    let stream = video
+        .stream()
+        .await
+        .map_err(|e| format!("Failed to get stream: {}", e))?;
+
+    let mut file = fs::File::create(&output_path)
+        .map_err(|e| format!("Failed to create file: {}", e))?;
+
+    let mut downloaded: u64 = 0;
+    let total_size = stream.content_length() as u64;
+
+    loop {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            drop(file);
+            fs::remove_file(&output_path).ok();
+            return Err("Download cancelled".to_string());
+        }
+
+        match stream.chunk().await {
+            Ok(Some(chunk)) => {
+                use std::io::Write;
+                file.write_all(&chunk)
+                    .map_err(|e| format!("Write error: {}", e))?;
+                downloaded += chunk.len() as u64;
+
+                if total_size > 0 {
+                    let percent = (downloaded * 100) / total_size;
+                    progress.store(percent, std::sync::atomic::Ordering::SeqCst);
+                    let _ = app.emit("download-progress", percent);
+                }
+            }
+            Ok(None) => break,
+            Err(e) => {
+                drop(file);
+                fs::remove_file(&output_path).ok();
+                return Err(format!("Download error: {}", e));
+            }
+        }
     }
 
-    let output = child.wait_with_output().map_err(|e| format!("Failed to wait: {}", e))?;
+    let _ = app.emit("download-complete", ());
 
-    let was_cancelled = cancel_flag.load(std::sync::atomic::Ordering::SeqCst);
-
-    {
-        let state = app.state::<AppState>();
-        *state.current_pid.lock().unwrap() = None;
-    }
-
-    if was_cancelled {
-        return Err("Download cancelled".to_string());
-    }
-
-    if output.status.success() {
-        let _ = app.emit("download-complete", ());
-        Ok(format!(
-            "Download complete! Saved to {}",
-            output_dir.display()
-        ))
-    } else {
-        let error_msg = String::from_utf8_lossy(&output.stderr).to_string();
-        let _ = app.emit("download-error", &error_msg);
-        Err(error_msg)
-    }
+    Ok(format!(
+        "Download complete! Saved to {}",
+        output_path.display()
+    ))
 }
 
 #[tauri::command]
 async fn cancel_download(app: AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let cancel_flag = state.cancel_flag.clone();
-    cancel_flag.store(true, std::sync::atomic::Ordering::SeqCst);
-
-    if let Some(pid) = *state.current_pid.lock().unwrap() {
-        #[cfg(unix)]
-        {
-            std::process::Command::new("kill")
-                .args(["-9", &format!("-{}", pid)])
-                .spawn()
-                .map_err(|e| format!("Failed to kill: {}", e))?;
-        }
-        #[cfg(not(unix))]
-        {
-            std::process::Command::new("taskkill")
-                .args(["/F", "/T", "/PID", &pid.to_string()])
-                .spawn()
-                .map_err(|e| format!("Failed to kill: {}", e))?;
-        }
-        let _ = app.emit("download-cancelled", ());
-    }
+    state.cancel_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+    let _ = app.emit("download-cancelled", ());
     Ok(())
 }
 
@@ -211,8 +176,8 @@ pub fn run() {
             let dir = load_download_dir(app.handle());
             app.manage(AppState {
                 download_dir: Mutex::new(dir),
-                current_pid: Mutex::new(None),
                 cancel_flag: Arc::new(AtomicBool::new(false)),
+                progress: Arc::new(AtomicU64::new(0)),
             });
             Ok(())
         })
@@ -221,21 +186,6 @@ pub fn run() {
                 let app = window.app_handle();
                 let state = app.state::<AppState>();
                 state.cancel_flag.store(true, std::sync::atomic::Ordering::SeqCst);
-                let pid = *state.current_pid.lock().unwrap();
-                if let Some(pid) = pid {
-                    #[cfg(unix)]
-                    {
-                        let _ = std::process::Command::new("kill")
-                            .args(["-9", &format!("-{}", pid)])
-                            .spawn();
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        let _ = std::process::Command::new("taskkill")
-                            .args(["/F", "/T", "/PID", &pid.to_string()])
-                            .spawn();
-                    }
-                }
             }
         })
         .invoke_handler(tauri::generate_handler![
