@@ -93,7 +93,7 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            src-tauri/target/${{ matrix.args == '--target x86_64-apple-darwin' && 'x86_64-apple-darwin' || matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || 'release' }}/release/bundle/**/*
+            src-tauri/target/${{ matrix.platform == 'macos-13' && 'x86_64-apple-darwin' || matrix.platform == 'macos-14' && 'aarch64-apple-darwin' || 'release' }}/release/bundle/**/*
 
   release:
     needs: build
