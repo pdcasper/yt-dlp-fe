@@ -67,27 +67,55 @@ fn get_effective_download_dir(app: &AppHandle) -> PathBuf {
     dirs::download_dir().unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn get_yt_dlp_path() -> PathBuf {
+fn get_bundle_dir() -> Option<PathBuf> {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            let bundled = exe_dir.join("yt-dlp");
-            if bundled.exists() {
-                return bundled;
-            }
             #[cfg(target_os = "macos")]
             {
-                let resources = exe_dir.join("yt-dlp-fe.app").join("Contents").join("Resources");
-                let bundled = resources.join("yt-dlp");
-                if bundled.exists() {
-                    return bundled;
+                let app_bundle = exe_dir.join("yt-dlp-fe.app").join("Contents").join("Resources");
+                if app_bundle.join("yt-dlp").exists() || app_bundle.join("ffmpeg").exists() {
+                    return Some(app_bundle);
                 }
+            }
+            
+            if exe_dir.join("yt-dlp").exists() || exe_dir.join("yt-dlp.exe").exists() {
+                return Some(exe_dir.to_path_buf());
             }
         }
     }
-    PathBuf::from("yt-dlp")
+    None
+}
+
+fn get_yt_dlp_path() -> PathBuf {
+    if let Some(bundle_dir) = get_bundle_dir() {
+        #[cfg(target_os = "windows")]
+        let yt_dlp = bundle_dir.join("yt-dlp.exe");
+        #[cfg(not(target_os = "windows"))]
+        let yt_dlp = bundle_dir.join("yt-dlp");
+        
+        if yt_dlp.exists() {
+            return yt_dlp;
+        }
+    }
+    
+    #[cfg(target_os = "windows")]
+    return PathBuf::from("yt-dlp.exe");
+    #[cfg(not(target_os = "windows"))]
+    return PathBuf::from("yt-dlp");
 }
 
 fn get_ffmpeg_path() -> Option<PathBuf> {
+    if let Some(bundle_dir) = get_bundle_dir() {
+        #[cfg(target_os = "windows")]
+        let ffmpeg = bundle_dir.join("ffmpeg.exe");
+        #[cfg(not(target_os = "windows"))]
+        let ffmpeg = bundle_dir.join("ffmpeg");
+        
+        if ffmpeg.exists() {
+            return Some(ffmpeg);
+        }
+    }
+    
     let search_paths = [
         "/usr/local/bin",
         "/usr/bin",

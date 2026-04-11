@@ -54,6 +54,27 @@ jobs:
           mkdir -p src-tauri/resources
           cp yt-dlp.exe src-tauri/resources/
 
+      - name: Download ffmpeg (macOS)
+        if: matrix.platform != 'windows-latest' && matrix.platform != 'ubuntu-22.04'
+        run: |
+          curl -L https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip -o ffmpeg.zip
+          unzip -o ffmpeg.zip
+          cp ffmpeg src-tauri/resources/
+
+      - name: Download ffmpeg (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
+          tar -xf ffmpeg.tar.xz --wildcards '*/ffmpeg' --strip-components=1
+          cp ffmpeg src-tauri/resources/
+
+      - name: Download ffmpeg (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          curl -L https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip -o ffmpeg.zip
+          tar -xf ffmpeg.zip --wildcards '*/ffmpeg.exe' --strip-components=1
+          cp ffmpeg.exe src-tauri/resources/
+
       - name: Install deps (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
