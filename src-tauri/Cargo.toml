@@ -1,6 +1,6 @@
 [package]
 name = "yt-dlp-fe"
-version = "0.4.0"
+version = "0.6.5"
 description = "A simple YouTube to MP3 downloader"
 authors = ["you"]
 edition = "2021"

@@ -11,8 +11,8 @@ A simple cross-platform desktop app to download YouTube audio as MP3.
 
 ## Requirements
 
-- No external dependencies required (yt-dlp is bundled with the app)
-- For development: Node.js, Rust, yt-dlp
+- **No external dependencies required!** yt-dlp and ffmpeg are bundled with the app
+- For development: Node.js, Rust, yt-dlp, ffmpeg
 
 ## Development
 
@@ -120,7 +120,7 @@ Una aplicacion de escritorio multiplataforma para descargar audio de YouTube com
 
 ## Requisitos
 
-- Sin dependencias externas (yt-dlp viene incluido)
+- **Sin dependencias externas!** yt-dlp y ffmpeg vienen incluidos con la app
 - Para desarrollo: Node.js, Rust, yt-dlp, ffmpeg
 
 ## Desarrollo
