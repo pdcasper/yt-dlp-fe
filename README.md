@@ -1,18 +1,18 @@
 # yt-dlp-fe
 
-A simple cross-platform desktop app to download YouTube audio using [rusty_ytdl](https://github.com/Mithronn/rusty-ytdl).
+A simple cross-platform desktop app to download YouTube audio as MP3.
 
 ## Features
 
-- Download YouTube videos as audio (m4a format)
+- Download YouTube videos as MP3 audio
+- Support for playlists and single videos
 - Simple minimalist UI
-- No external dependencies required
 - Cross-platform (Linux, macOS, Windows)
 
 ## Requirements
 
-- No external dependencies required!
-- For development: Node.js, Rust
+- No external dependencies required (yt-dlp is bundled with the app)
+- For development: Node.js, Rust, yt-dlp
 
 ## Development
 
