@@ -98,6 +98,108 @@ Pre-built binaries are available on the [Releases](https://github.com/pdcasper/y
 2. Click "Download" to convert to MP3
 3. The file will be saved to your Downloads folder
 
-## License
+---
+
+# yt-dlp-fe (Espanol)
+
+Una aplicacion de escritorio multiplataforma para descargar audio de YouTube como MP3 usando [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+
+## Caracteristicas
+
+- Descargar videos de YouTube como audio MP3
+- Interfaz minimalista y sencilla
+- Multiplataforma (Linux, macOS, Windows)
+
+## Requisitos
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) instalado en tu sistema
+- Para desarrollo: Node.js, Rust
+
+### Instalar yt-dlp
+
+**macOS:**
+```bash
+brew install yt-dlp
+```
+
+**Linux:**
+```bash
+pip install yt-dlp
+# o
+sudo dnf install yt-dlp
+```
+
+**Windows:**
+```powershell
+pip install yt-dlp
+```
+
+## Desarrollo
+
+### Requisitos previos
+
+- Node.js 18+
+- Rust 1.70+
+
+**Linux (Fedora/RHEL):**
+```bash
+sudo dnf install -y gtk3-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel
+```
+
+**macOS:**
+```bash
+brew install gtk+3 webkit2gtk-4.1
+```
+
+### Configuracion
+
+```bash
+npm install
+```
+
+### Ejecutar en modo desarrollo
+
+```bash
+npm run tauri dev
+```
+
+### Compilar para produccion
+
+```bash
+npm run tauri build
+```
+
+La aplicacion compilada estara en:
+- Linux: `src-tauri/target/release/yt-dlp-fe`
+- Debian: `src-tauri/target/release/bundle/deb/`
+- macOS: `src-tauri/target/release/bundle/macos/`
+
+### Crear un lanzamiento
+
+Crea una nueva etiqueta para activar la compilacion y publicacion:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+## Descargas
+
+Los binarios pre-construidos estan disponibles en la pagina de [Lanzamientos](https://github.com/pdcasper/yt-dlp-fe/releases).
+
+| Plataforma | Archivo |
+|------------|---------|
+| Windows | `yt-dlp-fe_x.x.x_x64-setup.exe` o `.msi` |
+| macOS (Intel) | `yt-dlp-fe_x.x.x_x64.dmg` |
+| macOS (Apple Silicon) | `yt-dlp-fe_x.x.x_aarch64.dmg` |
+| Linux | `yt-dlp-fe_x.x.x_amd64.deb` |
+
+## Uso
+
+1. Ingresa una URL de YouTube en el campo de texto
+2. Haz clic en "Descargar" para convertir a MP3
+3. El archivo se guardara en tu carpeta de Descargas
+
+## Licencia
 
 MIT
