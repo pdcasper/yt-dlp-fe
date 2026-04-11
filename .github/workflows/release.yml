@@ -16,14 +16,22 @@ jobs:
         include:
           - platform: macos-13
             args: --target x86_64-apple-darwin
+            shell: bash
           - platform: macos-14
             args: --target aarch64-apple-darwin
+            shell: bash
           - platform: ubuntu-22.04
             args: ''
+            shell: bash
           - platform: windows-latest
             args: ''
+            shell: pwsh
 
     runs-on: ${{ matrix.platform }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +56,7 @@ jobs:
       - name: Download yt-dlp (Unix)
         if: matrix.platform != 'windows-latest'
         run: |
-          if [ ! -d src-tauri/resources ]; then mkdir -p src-tauri/resources; fi
+          mkdir -p src-tauri/resources
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o src-tauri/resources/yt-dlp
           chmod a+rx src-tauri/resources/yt-dlp
 
@@ -98,24 +106,24 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: npm run tauri build -- ${{ matrix.args }} --bundles nsis
 
-      - name: Get bundle path
-        id: bundle
+      - name: Set bundle path
         run: |
-          if [ -n "${{ matrix.args }}" ]; then
-            target=$(echo "${{ matrix.args }}" | awk '{print $2}')
-            echo "path=src-tauri/target/$target/release/bundle" >> $GITHUB_OUTPUT
-          else
-            echo "path=src-tauri/target/release/bundle" >> $GITHUB_OUTPUT
-          fi
+          if (${{ matrix.args }}) {
+            $target = (${{ matrix.args }}).Trim().Split(' ')[1]
+            $path = "src-tauri/target/$target/release/bundle"
+          } else {
+            $path = "src-tauri/target/release/bundle"
+          }
+          Write-Host "BUNDLE_PATH=$path" >> $env:GITHUB_OUTPUT
 
       - name: List bundle contents
-        run: ls -laR "${{ steps.bundle.outputs.path }}" || echo "No bundle"
+        run: Get-ChildItem -Path "${{ env.BUNDLE_PATH }}" -Recurse | Select-Object FullName, Length
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: binaries-${{ matrix.platform }}
-          path: ${{ steps.bundle.outputs.path }}
+          path: ${{ env.BUNDLE_PATH }}
 
   release:
     needs: build
@@ -129,7 +137,7 @@ jobs:
           merge-multiple: true
 
       - name: List artifacts
-        run: ls -laR dist
+        run: Get-ChildItem -Path dist -Recurse | Select-Object FullName, Length
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
