@@ -75,8 +75,22 @@ jobs:
       - name: Install frontend
         run: npm ci
 
+      - name: Create resources directory
+        run: mkdir -p src-tauri/resources
+
       - name: Build Tauri
-        run: npm run tauri build -- ${{ matrix.args }}
+        run: |
+          case "${{ matrix.platform }}" in
+            macos-13) targets="dmg" ;;
+            macos-14) targets="dmg" ;;
+            ubuntu-22.04) targets="deb" ;;
+            windows-latest) targets="nsis" ;;
+          esac
+          npm run tauri build -- ${{ matrix.args }} --bundles $targets
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+          APPLE_IDENTITY: "-"
+          CODESIGNING_MODE: skip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
