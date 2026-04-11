@@ -82,19 +82,21 @@ jobs:
       - name: Install frontend
         run: npm ci
 
-      - name: Build Tauri
-        run: |
-          case "${{ matrix.platform }}" in
-            macos-13) targets="dmg" ;;
-            macos-14) targets="dmg" ;;
-            ubuntu-22.04) targets="deb" ;;
-            windows-latest) targets="nsis" ;;
-          esac
-          npm run tauri build -- ${{ matrix.args }} --bundles $targets
+      - name: Build Tauri (macOS)
+        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
+        run: npm run tauri build -- ${{ matrix.args }} --bundles dmg
         env:
           APPLE_SIGNING_IDENTITY: "-"
           APPLE_IDENTITY: "-"
           CODESIGNING_MODE: skip
+
+      - name: Build Tauri (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: npm run tauri build -- ${{ matrix.args }} --bundles deb
+
+      - name: Build Tauri (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: npm run tauri build -- ${{ matrix.args }} --bundles nsis
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
