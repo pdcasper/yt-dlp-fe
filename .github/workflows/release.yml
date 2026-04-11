@@ -98,14 +98,24 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: npm run tauri build -- ${{ matrix.args }} --bundles nsis
 
+      - name: Get bundle path
+        id: bundle
+        run: |
+          if [ -n "${{ matrix.args }}" ]; then
+            target=$(echo "${{ matrix.args }}" | awk '{print $2}')
+            echo "path=src-tauri/target/$target/release/bundle" >> $GITHUB_OUTPUT
+          else
+            echo "path=src-tauri/target/release/bundle" >> $GITHUB_OUTPUT
+          fi
+
       - name: List bundle contents
-        run: ls -laR src-tauri/target/release/bundle || echo "No bundle"
+        run: ls -laR "${{ steps.bundle.outputs.path }}" || echo "No bundle"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: binaries-${{ matrix.platform }}
-          path: src-tauri/target/release/bundle
+          path: ${{ steps.bundle.outputs.path }}
           if-no-files-found: warn
 
   release:
