@@ -194,7 +194,17 @@ async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
 
     let progress = app.state::<AppState>().progress.clone();
 
-    let video_info = rusty_ytdl::Video::new(&url)
+    let video_url = if url.contains("&list=") || url.contains("playlist") {
+        if let Some(video_id) = rusty_ytdl::get_video_id(&url) {
+            format!("https://www.youtube.com/watch?v={}", video_id)
+        } else {
+            return Err("Could not extract video ID from URL".to_string());
+        }
+    } else {
+        url
+    };
+
+    let video_info = rusty_ytdl::Video::new(&video_url)
         .map_err(|e| format!("Failed to create video: {}", e))?
         .get_info()
         .await
@@ -219,7 +229,7 @@ async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
         ..Default::default()
     };
 
-    let video = rusty_ytdl::Video::new_with_options(&url, video_options)
+    let video = rusty_ytdl::Video::new_with_options(&video_url, video_options)
         .map_err(|e| format!("Failed to create video: {}", e))?;
 
     let stream = video
