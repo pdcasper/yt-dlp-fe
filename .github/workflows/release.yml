@@ -95,12 +95,17 @@ jobs:
           path: dist
 
       - name: List artifacts
-        run: ls -la dist/ && find dist/ -type f
+        run: ls -laR dist/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/**/*.exe dist/**/*.msi dist/**/*Setup*.exe
+          files: |
+            dist/**/*.exe
+            dist/**/*.msi
+            dist/**/*.dmg
+            dist/**/*.deb
+            dist/**/*.app
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
