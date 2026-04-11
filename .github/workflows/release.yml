@@ -82,10 +82,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: binaries-${{ matrix.platform }}
-          path: |
-            src-tauri/target/release/bundle/**/*
-            src-tauri/target/release/*.exe
-            src-tauri/target/release/yt-dlp-fe
+          path: src-tauri/target/release/bundle
+          if-no-files-found: warn
 
   release:
     needs: build
@@ -97,17 +95,13 @@ jobs:
           path: dist
 
       - name: List artifacts
-        run: ls -laR dist/
+        run: find dist -type f
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/**/*.exe
-            dist/**/*.msi
-            dist/**/*.dmg
-            dist/**/*.deb
-            dist/**/*.app
+          files: dist
+          recursive: true
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
