@@ -16,22 +16,14 @@ jobs:
         include:
           - platform: macos-13
             args: --target x86_64-apple-darwin
-            shell: bash
           - platform: macos-14
             args: --target aarch64-apple-darwin
-            shell: bash
           - platform: ubuntu-22.04
             args: ''
-            shell: bash
           - platform: windows-latest
             args: ''
-            shell: pwsh
 
     runs-on: ${{ matrix.platform }}
-    defaults:
-      run:
-        shell: ${{ matrix.shell }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -53,18 +45,18 @@ jobs:
         if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
         run: brew install gtk+3
 
-      - name: Download yt-dlp (Unix)
+      - name: Download yt-dlp (macOS/Linux)
         if: matrix.platform != 'windows-latest'
         run: |
           mkdir -p src-tauri/resources
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o src-tauri/resources/yt-dlp
-          chmod a+rx src-tauri/resources/yt-dlp
+          chmod +x src-tauri/resources/yt-dlp
 
       - name: Download yt-dlp (Windows)
         if: matrix.platform == 'windows-latest'
         run: |
-          New-Item -ItemType Directory -Force -Path src-tauri/resources | Out-Null
-          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o src-tauri/resources/yt-dlp.exe
+          mkdir -p src-tauri/resources
+          curl -L -o src-tauri/resources/yt-dlp.exe https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
 
       - name: Download ffmpeg (Linux)
         if: matrix.platform == 'ubuntu-22.04'
@@ -83,9 +75,9 @@ jobs:
       - name: Download ffmpeg (Windows)
         if: matrix.platform == 'windows-latest'
         run: |
-          New-Item -ItemType Directory -Force -Path src-tauri/resources | Out-Null
-          curl -L https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip -o ffmpeg.zip
-          powershell -Command "Expand-Archive -Force ffmpeg.zip .; Copy-Item (Get-ChildItem . -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1).FullName -Destination src-tauri/resources/ffmpeg.exe -Force"
+          mkdir -p src-tauri/resources
+          curl -L -o ffmpeg.zip https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip
+          powershell -Command "Expand-Archive -Force ffmpeg.zip .; Get-ChildItem . -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1 | Copy-Item -Destination src-tauri/resources/ffmpeg.exe -Force"
 
       - name: Install frontend
         run: npm ci
@@ -106,18 +98,36 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: npm run tauri build -- ${{ matrix.args }} --bundles nsis
 
-      - name: Set bundle path
+      - name: Determine bundle path (macOS/Linux)
+        if: matrix.platform != 'windows-latest'
         run: |
-          if (${{ matrix.args }}) {
-            $target = (${{ matrix.args }}).Trim().Split(' ')[1]
+          if [ -n "${{ matrix.args }}" ]; then
+            target=$(echo "${{ matrix.args }}" | awk '{print $2}')
+            echo "BUNDLE_PATH=src-tauri/target/$target/release/bundle" >> $GITHUB_ENV
+          else
+            echo "BUNDLE_PATH=src-tauri/target/release/bundle" >> $GITHUB_ENV
+          fi
+
+      - name: Determine bundle path (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          if ("${{ matrix.args }}") {
+            $target = ("${{ matrix.args }}").Trim().Split(' ')[1]
             $path = "src-tauri/target/$target/release/bundle"
           } else {
             $path = "src-tauri/target/release/bundle"
           }
-          Write-Host "BUNDLE_PATH=$path" >> $env:GITHUB_OUTPUT
+          Add-Content -Path $env:GITHUB_ENV -Value "BUNDLE_PATH=$path"
+        shell: pwsh
 
-      - name: List bundle contents
-        run: Get-ChildItem -Path "${{ env.BUNDLE_PATH }}" -Recurse | Select-Object FullName, Length
+      - name: List bundle contents (macOS/Linux)
+        if: matrix.platform != 'windows-latest'
+        run: ls -laR "$BUNDLE_PATH"
+
+      - name: List bundle contents (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: Get-ChildItem -Path "$env:BUNDLE_PATH" -Recurse | Select-Object FullName
+        shell: pwsh
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -137,7 +147,8 @@ jobs:
           merge-multiple: true
 
       - name: List artifacts
-        run: Get-ChildItem -Path dist -Recurse | Select-Object FullName, Length
+        run: find dist -type f
+        shell: bash
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
