@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.5] - 2026-04-11
+
+### Added
+- GitHub Actions CI for automated releases on all platforms (Linux, macOS, Windows)
+
+### Changed
+- Updated Tauri to v2
+- Bundled yt-dlp and ffmpeg with the app - no external dependencies required
+
 ## [0.3.0] - 2026-03-15
 
 ### Added
