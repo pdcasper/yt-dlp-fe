@@ -9,6 +9,7 @@ const folderBtn = document.querySelector("#folder-btn");
 const progressContainer = document.querySelector("#progress-container");
 const progressFill = document.querySelector("#progress-fill");
 const statusText = document.querySelector("#status-text");
+const songTitle = document.querySelector("#song-title");
 const result = document.querySelector("#result");
 const resultText = document.querySelector("#result-text");
 
@@ -36,14 +37,16 @@ async function startDownload() {
   progressContainer.classList.remove("hidden");
   result.classList.add("hidden");
   
-  progressFill.style.width = "30%";
-  statusText.textContent = "Starting download...";
+  progressFill.style.width = "0%";
+  statusText.textContent = "Starting...";
+  songTitle.textContent = "";
 
   try {
     const response = await invoke("download_mp3", { url });
     
     progressFill.style.width = "100%";
     statusText.textContent = "Complete!";
+    songTitle.textContent = "";
     showResult(response, "success");
   } catch (error) {
     if (!error.includes("cancelled")) {
@@ -62,6 +65,7 @@ async function cancelDownload() {
   try {
     await invoke("cancel_download");
     statusText.textContent = "Cancelled";
+    songTitle.textContent = "";
     isDownloading = false;
     downloadBtn.disabled = false;
     cancelBtn.disabled = true;
@@ -106,19 +110,30 @@ async function initFolder() {
 }
 
 listen("download-started", () => {
-  progressFill.style.width = "50%";
-  statusText.textContent = "Downloading...";
+  progressFill.style.width = "0%";
+  statusText.textContent = "Starting...";
 });
 
 listen("download-progress", (event) => {
-  const { percent, status } = event.payload;
-  progressFill.style.width = `${percent}%`;
-  statusText.textContent = status;
+  const { title, percent } = event.payload;
+  
+  if (title.includes("/")) {
+    statusText.textContent = `Downloading ${title}`;
+    songTitle.textContent = "";
+  } else if (title) {
+    songTitle.textContent = title;
+    statusText.textContent = `Downloading ${percent}%`;
+  }
+  
+  if (percent > 0 && percent <= 100) {
+    progressFill.style.width = `${percent}%`;
+  }
 });
 
 listen("download-complete", () => {
   progressFill.style.width = "100%";
   statusText.textContent = "Complete!";
+  songTitle.textContent = "";
 });
 
 listen("download-error", (event) => {
@@ -127,6 +142,7 @@ listen("download-error", (event) => {
 
 listen("download-cancelled", () => {
   statusText.textContent = "Cancelled";
+  songTitle.textContent = "";
   isDownloading = false;
   downloadBtn.disabled = false;
   cancelBtn.disabled = true;

@@ -1,15 +1,26 @@
 use std::path::Path;
+use std::io::{BufRead, BufReader};
+use std::process::Stdio;
+use std::sync::mpsc;
+use std::thread;
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU64}};
+use std::sync::{Arc, Mutex, atomic::AtomicBool};
 use tauri::{AppHandle, Emitter, Manager};
 
 struct AppState {
     download_dir: Mutex<Option<PathBuf>>,
     cancel_flag: Arc<AtomicBool>,
-    progress: Arc<AtomicU64>,
     current_pid: Mutex<Option<u32>>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct DownloadProgress {
+    current: u32,
+    total: u32,
+    title: String,
+    percent: u32,
 }
 
 fn get_config_path(app: &AppHandle) -> PathBuf {
@@ -92,6 +103,110 @@ fn set_download_dir(app: AppHandle, path: String) -> Result<(), String> {
     save_download_dir(&app, &dir)
 }
 
+fn parse_yt_dlp_progress(line: &str) -> Option<(String, u32)> {
+    let re = regex::Regex::new(r"\[download\]\s+(\d+\.?\d*)%").ok()?;
+    if let Some(caps) = re.captures(line) {
+        let percent: f64 = caps.get(1)?.as_str().parse().ok()?;
+        let title_re = regex::Regex::new(r"\[download\]\s+\d+\.?\d*%\s+of\s+(.+?)(?:\s+at\s+)?").ok()?;
+        let title = title_re.captures(line).and_then(|c| c.get(1)).map(|m| m.as_str().to_string()).unwrap_or_else(|| "Downloading...".to_string());
+        return Some((title, percent as u32));
+    }
+    
+    let playlist_re = regex::Regex::new(r"Downloading item (\d+) of (\d+)").ok()?;
+    if let Some(caps) = playlist_re.captures(line) {
+        let current: u32 = caps.get(1)?.as_str().parse().ok()?;
+        let total: u32 = caps.get(2)?.as_str().parse().ok()?;
+        return Some((format!("{}/{}", current, total), 0));
+    }
+    
+    let downloading_re = regex::Regex::new(r"\[download\]\s+Downloading\s+webpage").ok()?;
+    if downloading_re.is_match(line) {
+        return Some(("Fetching info...".to_string(), 0));
+    }
+    
+    let extracting_re = regex::Regex::new(r"\[download\]\s+Extracting\s+information").ok()?;
+    if extracting_re.is_match(line) {
+        return Some(("Extracting info...".to_string(), 0));
+    }
+    
+    None
+}
+
+fn run_yt_dlp_with_progress(
+    yt_dlp_path: &Path,
+    url: &str,
+    output_template: &str,
+    cancel_flag: Arc<AtomicBool>,
+    app: AppHandle,
+) -> Result<std::process::Output, String> {
+    let _ = app.emit("download-started", ());
+    
+    let mut cmd = std::process::Command::new(yt_dlp_path);
+    cmd.args([
+        "-x",
+        "--audio-format",
+        "mp3",
+        "--output",
+        output_template,
+        "--no-playlist",
+        url,
+    ])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to start yt-dlp: {}", e))?;
+    let pid = child.id();
+    
+    let app_clone = app.clone();
+    let (tx, rx) = mpsc::channel();
+    
+    let stderr = child.stderr.take();
+    
+    thread::spawn(move || {
+        if let Some(stderr) = stderr {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                    let _ = tx.send(Err("cancelled"));
+                    return;
+                }
+                if let Some((title, percent)) = parse_yt_dlp_progress(&line) {
+                    let progress = DownloadProgress {
+                        current: 0,
+                        total: 0,
+                        title,
+                        percent,
+                    };
+                    let _ = app_clone.emit("download-progress", &progress);
+                }
+            }
+        }
+        let _ = tx.send(Ok(()));
+    });
+
+    {
+        let state = app.state::<AppState>();
+        *state.current_pid.lock().unwrap() = Some(pid);
+    }
+
+    let output = child.wait_with_output().map_err(|e| format!("Failed to wait: {}", e))?;
+
+    {
+        let state = app.state::<AppState>();
+        *state.current_pid.lock().unwrap() = None;
+    }
+
+    let _: Result<Result<(), &str>, _> = rx.recv();
+
+    Ok(output)
+}
+
 #[tauri::command]
 async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
     let output_dir = get_effective_download_dir(&app);
@@ -101,59 +216,20 @@ async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
         .to_string_lossy()
         .to_string();
 
-    let _ = app.emit("download-started", ());
-
     let cancel_flag = app.state::<AppState>().cancel_flag.clone();
     cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
     let yt_dlp_path = get_yt_dlp_path();
 
-    #[cfg(unix)]
-    let child = {
-        use std::os::unix::process::CommandExt;
-        let mut cmd = std::process::Command::new(&yt_dlp_path);
-        cmd.args([
-            "-x",
-            "--audio-format",
-            "mp3",
-            "--output",
-            &output_template,
-            &url,
-        ]);
-        cmd.process_group(0);
-        cmd.spawn()
-            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?
-    };
-
-    #[cfg(not(unix))]
-    let child = {
-        std::process::Command::new(&yt_dlp_path)
-            .args([
-                "-x",
-                "--audio-format",
-                "mp3",
-                "--output",
-                &output_template,
-                &url,
-            ])
-            .spawn()
-            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?
-    };
-
-    let pid = child.id();
-    {
-        let state = app.state::<AppState>();
-        *state.current_pid.lock().unwrap() = Some(pid);
-    }
-
-    let output = child.wait_with_output().map_err(|e| format!("Failed to wait: {}", e))?;
+    let output = run_yt_dlp_with_progress(
+        &yt_dlp_path,
+        &url,
+        &output_template,
+        cancel_flag.clone(),
+        app.clone(),
+    )?;
 
     let was_cancelled = cancel_flag.load(std::sync::atomic::Ordering::SeqCst);
-
-    {
-        let state = app.state::<AppState>();
-        *state.current_pid.lock().unwrap() = None;
-    }
 
     if was_cancelled {
         return Err("Download cancelled".to_string());
@@ -209,7 +285,6 @@ pub fn run() {
             app.manage(AppState {
                 download_dir: Mutex::new(dir),
                 cancel_flag: Arc::new(AtomicBool::new(false)),
-                progress: Arc::new(AtomicU64::new(0)),
                 current_pid: Mutex::new(None),
             });
             Ok(())

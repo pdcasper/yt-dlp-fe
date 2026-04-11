@@ -4,8 +4,7 @@
   "version": "0.3.0",
   "identifier": "com.pdcasper.yt-dlp-fe",
   "build": {
-    "frontendDist": "../src",
-    "devtools": true
+    "frontendDist": "../src"
   },
   "app": {
     "withGlobalTauri": true,
@@ -20,9 +19,6 @@
     ],
     "security": {
       "csp": null
-    },
-    "resources": {
-      "resources/*": "./"
     }
   },
   "bundle": {
@@ -34,9 +30,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "resources": {
-      "resources/*": "./"
-    }
+    ]
   }
 }
