@@ -87,6 +87,28 @@ fn get_yt_dlp_path() -> PathBuf {
     PathBuf::from("yt-dlp")
 }
 
+fn get_ffmpeg_path() -> Option<PathBuf> {
+    let search_paths = [
+        "/usr/local/bin",
+        "/usr/bin",
+        "/opt/homebrew/bin",
+        "/bin",
+    ];
+    
+    for base in &search_paths {
+        let path = std::path::Path::new(base).join("ffmpeg");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    
+    if std::process::Command::new("ffmpeg").arg("-version").output().is_ok() {
+        return Some(PathBuf::from("ffmpeg"));
+    }
+    
+    None
+}
+
 #[tauri::command]
 fn get_download_dir(app: AppHandle) -> String {
     get_effective_download_dir(&app)
@@ -139,16 +161,26 @@ fn run_yt_dlp_with_progress(
     let _ = app.emit("download-started", ());
     
     let mut cmd = std::process::Command::new(yt_dlp_path);
-    cmd.args([
-        "-x",
-        "--audio-format",
-        "mp3",
-        "--output",
-        output_template,
-        url,
-    ])
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped());
+    
+    let mut args: Vec<std::ffi::OsString> = vec![
+        "-x".into(),
+        "--audio-format".into(),
+        "mp3".into(),
+        "--output".into(),
+        output_template.into(),
+        url.into(),
+    ];
+    
+    if let Some(ffmpeg_path) = get_ffmpeg_path() {
+        let ffmpeg_str = ffmpeg_path.to_string_lossy().to_string();
+        args.insert(0, "--ffmpeg-location".into());
+        args.insert(1, ffmpeg_str.into());
+    }
+    
+    cmd.args(&args);
+    
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
 
     #[cfg(unix)]
     {
