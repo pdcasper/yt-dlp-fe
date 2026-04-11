@@ -23,3 +23,5 @@ dirs = "5"
 rusty_ytdl = "0.7"
 tokio = { version = "1", features = ["full"] }
 futures-util = "0.3"
+symphonia = { version = "0.5", features = ["all"] }
+mp3lame-encoder = "0.2"
