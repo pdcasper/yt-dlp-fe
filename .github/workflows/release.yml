@@ -145,18 +145,22 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: binaries-*
-          merge-multiple: true
 
       - name: List artifacts
+        run: ls -laR dist
+
+      - name: Flatten directory structure
+        run: |
+          find dist -type f -exec mv {} dist/ \;
+          rmdir $(find dist -type d -empty)
+
+      - name: List final artifacts
         run: find dist -type f
-        shell: bash
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist
-          recursive: true
+          files: dist/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
