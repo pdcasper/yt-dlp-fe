@@ -104,29 +104,25 @@ fn set_download_dir(app: AppHandle, path: String) -> Result<(), String> {
 }
 
 fn parse_yt_dlp_progress(line: &str) -> Option<(String, u32)> {
-    let re = regex::Regex::new(r"\[download\]\s+(\d+\.?\d*)%").ok()?;
-    if let Some(caps) = re.captures(line) {
-        let percent: f64 = caps.get(1)?.as_str().parse().ok()?;
-        let title_re = regex::Regex::new(r"\[download\]\s+\d+\.?\d*%\s+of\s+(.+?)(?:\s+at\s+)?").ok()?;
-        let title = title_re.captures(line).and_then(|c| c.get(1)).map(|m| m.as_str().to_string()).unwrap_or_else(|| "Downloading...".to_string());
-        return Some((title, percent as u32));
+    if line.contains("[download]") {
+        if let Some(percent_re) = regex::Regex::new(r"(\d+\.?\d*)%").ok() {
+            if let Some(caps) = percent_re.captures(line) {
+                if let Some(percent_str) = caps.get(1) {
+                    if let Ok(percent) = percent_str.as_str().parse::<f64>() {
+                        let title = if let Some(title_re) = regex::Regex::new(r"\]\s+of\s+(.+?)(?:\s+at|$)").ok() {
+                            title_re.captures(line).and_then(|c| c.get(1)).map(|m| m.as_str().to_string()).unwrap_or_default()
+                        } else {
+                            String::new()
+                        };
+                        return Some((title, percent as u32));
+                    }
+                }
+            }
+        }
     }
     
-    let playlist_re = regex::Regex::new(r"Downloading item (\d+) of (\d+)").ok()?;
-    if let Some(caps) = playlist_re.captures(line) {
-        let current: u32 = caps.get(1)?.as_str().parse().ok()?;
-        let total: u32 = caps.get(2)?.as_str().parse().ok()?;
-        return Some((format!("{}/{}", current, total), 0));
-    }
-    
-    let downloading_re = regex::Regex::new(r"\[download\]\s+Downloading\s+webpage").ok()?;
-    if downloading_re.is_match(line) {
+    if line.contains("Downloading playlist") || line.contains("Exporting information") {
         return Some(("Fetching info...".to_string(), 0));
-    }
-    
-    let extracting_re = regex::Regex::new(r"\[download\]\s+Extracting\s+information").ok()?;
-    if extracting_re.is_match(line) {
-        return Some(("Extracting info...".to_string(), 0));
     }
     
     None
@@ -148,7 +144,6 @@ fn run_yt_dlp_with_progress(
         "mp3",
         "--output",
         output_template,
-        "--no-playlist",
         url,
     ])
     .stdout(Stdio::piped())
@@ -167,6 +162,7 @@ fn run_yt_dlp_with_progress(
     let (tx, rx) = mpsc::channel();
     
     let stderr = child.stderr.take();
+    let stdout = child.stdout.take();
     
     thread::spawn(move || {
         if let Some(stderr) = stderr {
@@ -187,6 +183,7 @@ fn run_yt_dlp_with_progress(
                 }
             }
         }
+        drop(stdout);
         let _ = tx.send(Ok(()));
     });
 
