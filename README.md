@@ -72,6 +72,26 @@ The built application will be in:
 - Debian: `src-tauri/target/release/bundle/deb/`
 - macOS: `src-tauri/target/release/bundle/macos/`
 
+### Releasing
+
+Create a new tag to trigger the CI build and release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+## Downloads
+
+Pre-built binaries are available on the [Releases](https://github.com/pdcasper/yt-dlp-fe/releases) page.
+
+| Platform | File |
+|----------|------|
+| Windows | `yt-dlp-fe_x.x.x_x64-setup.exe` or `.msi` |
+| macOS (Intel) | `yt-dlp-fe_x.x.x_x64.dmg` |
+| macOS (Apple Silicon) | `yt-dlp-fe_x.x.x_aarch64.dmg` |
+| Linux | `yt-dlp-fe_x.x.x_amd64.deb` |
+
 ## Usage
 
 1. Enter a YouTube URL in the input field

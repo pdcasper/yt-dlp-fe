@@ -73,6 +73,32 @@ fn set_download_dir(app: AppHandle, path: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
+    fn find_executable(name: &str) -> Option<std::process::Command> {
+        let search_paths = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ];
+
+        for base in &search_paths {
+            let path = std::path::Path::new(base).join(name);
+            if path.exists() {
+                return Some(std::process::Command::new(path.to_string_lossy().to_string()));
+            }
+        }
+
+        if std::process::Command::new(name).arg("--version").output().is_ok() {
+            return Some(std::process::Command::new(name));
+        }
+
+        None
+    }
+
+    fn get_yt_dlp_command() -> std::process::Command {
+        find_executable("yt-dlp").unwrap_or_else(|| std::process::Command::new("yt-dlp"))
+    }
+
     let output_dir = get_effective_download_dir(&app);
 
     let output_template = output_dir
@@ -88,7 +114,7 @@ async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
     #[cfg(unix)]
     let child = {
         use std::os::unix::process::CommandExt;
-        let mut cmd = std::process::Command::new("yt-dlp");
+        let mut cmd = get_yt_dlp_command();
         cmd.args([
             "-x",
             "--audio-format",
@@ -104,7 +130,7 @@ async fn download_mp3(app: AppHandle, url: String) -> Result<String, String> {
 
     #[cfg(not(unix))]
     let child = {
-        std::process::Command::new("yt-dlp")
+        get_yt_dlp_command()
             .args([
                 "-x",
                 "--audio-format",
