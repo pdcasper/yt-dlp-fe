@@ -104,25 +104,26 @@ fn set_download_dir(app: AppHandle, path: String) -> Result<(), String> {
 }
 
 fn parse_yt_dlp_progress(line: &str) -> Option<(String, u32)> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+
     if line.contains("[download]") {
-        if let Some(percent_re) = regex::Regex::new(r"(\d+\.?\d*)%").ok() {
-            if let Some(caps) = percent_re.captures(line) {
-                if let Some(percent_str) = caps.get(1) {
-                    if let Ok(percent) = percent_str.as_str().parse::<f64>() {
-                        let title = if let Some(title_re) = regex::Regex::new(r"\]\s+of\s+(.+?)(?:\s+at|$)").ok() {
-                            title_re.captures(line).and_then(|c| c.get(1)).map(|m| m.as_str().to_string()).unwrap_or_default()
+        if let Ok(re) = regex::Regex::new(r"(\d+\.?\d*)%") {
+            if let Some(caps) = re.captures(line) {
+                if let Some(m) = caps.get(1) {
+                    if let Ok(pct) = m.as_str().parse::<f64>() {
+                        let title = if let Ok(title_re) = regex::Regex::new(r"of\s+(.+?)(?:\s+at|\s+of\s+$)") {
+                            title_re.captures(line).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_else(|| "Downloading".to_string())
                         } else {
-                            String::new()
+                            "Downloading".to_string()
                         };
-                        return Some((title, percent as u32));
+                        return Some((title, pct as u32));
                     }
                 }
             }
         }
-    }
-    
-    if line.contains("Downloading playlist") || line.contains("Exporting information") {
-        return Some(("Fetching info...".to_string(), 0));
     }
     
     None

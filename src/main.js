@@ -112,21 +112,21 @@ async function initFolder() {
 listen("download-started", () => {
   progressFill.style.width = "0%";
   statusText.textContent = "Starting...";
+  songTitle.textContent = "";
 });
 
 listen("download-progress", (event) => {
   const { title, percent } = event.payload;
   
-  if (title.includes("/")) {
-    statusText.textContent = `Downloading ${title}`;
-    songTitle.textContent = "";
-  } else if (title) {
+  if (title) {
     songTitle.textContent = title;
-    statusText.textContent = `Downloading ${percent}%`;
   }
   
   if (percent > 0 && percent <= 100) {
+    statusText.textContent = `Downloading ${percent}%`;
     progressFill.style.width = `${percent}%`;
+  } else if (title) {
+    statusText.textContent = title;
   }
 });
 
