@@ -20,6 +20,31 @@ A simple cross-platform desktop app to download YouTube audio as MP3.
 
 - Node.js 18+
 - Rust 1.70+
+- yt-dlp
+- ffmpeg
+
+**macOS:**
+```bash
+brew install yt-dlp ffmpeg
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt install yt-dlp ffmpeg
+```
+
+**Linux (Fedora/RHEL):**
+```bash
+sudo dnf install yt-dlp ffmpeg
+```
+
+**Windows:**
+```powershell
+pip install yt-dlp
+winget install ffmpeg
+```
+
+### System Libraries
 
 **Linux (Fedora/RHEL):**
 ```bash
@@ -84,19 +109,19 @@ Pre-built binaries are available on the [Releases](https://github.com/pdcasper/y
 
 # yt-dlp-fe (Espanol)
 
-Una aplicacion de escritorio multiplataforma para descargar audio de YouTube usando [rusty_ytdl](https://github.com/Mithronn/rusty-ytdl).
+Una aplicacion de escritorio multiplataforma para descargar audio de YouTube como MP3.
 
 ## Caracteristicas
 
-- Descargar videos de YouTube como audio (formato m4a)
+- Descargar videos de YouTube como audio MP3
+- Soporte para listas de reproduccion y videos individuales
 - Interfaz minimalista y sencilla
-- Sin dependencias externas
 - Multiplataforma (Linux, macOS, Windows)
 
 ## Requisitos
 
-- Sin dependencias externas!
-- Para desarrollo: Node.js, Rust
+- Sin dependencias externas (yt-dlp viene incluido)
+- Para desarrollo: Node.js, Rust, yt-dlp, ffmpeg
 
 ## Desarrollo
 
